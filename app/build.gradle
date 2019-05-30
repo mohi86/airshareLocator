@@ -1,4 +1,9 @@
 apply plugin: 'com.android.application'
+//***********************************************************************************************//
+def IOTHUB_DEVICE_CONNECTION_STRING_ENV_VAR_NAME = project.hasProperty('ConnectionString') ? '"'+project.property('ConnectionString')+'"' : '"Define Device Connection"'
+def STRING='String'
+//***********************************************************************************************//
+
 
 android {
     compileSdkVersion 28
@@ -9,12 +14,19 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        each {
+            //buildTypes.mBuildConfigFields 'DATATYPE','VARIABLE',|"GRADLE VARIABLE|"'
+            buildConfigField STRING, 'ConnectionString', IOTHUB_DEVICE_CONNECTION_STRING_ENV_VAR_NAME
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    packagingOptions {
+        exclude 'thirdpartynotice.txt'
     }
 }
 
@@ -25,4 +37,9 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation ('com.microsoft.azure.sdk.iot:iot-device-client:1.14.2'){
+        exclude module: 'azure-storage'
+    }
+    implementation ('com.microsoft.azure.android:azure-storage-android:2.0.0@aar')
+    implementation ('org.apache.commons:commons-lang3:3.6')
 }
