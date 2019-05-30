@@ -83,4 +83,24 @@
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/logo" />
 
+    <TextView
+        android:id="@+id/statusTextView"
+        android:layout_width="264dp"
+        android:layout_height="163dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="7dp"
+        android:layout_marginBottom="13dp"
+        android:background="#003490"
+        android:gravity="center"
+        android:lineSpacingExtra="24sp"
+        android:text="Press the button to start the transmission"
+        android:textAlignment="center"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toTopOf="@+id/trackingButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/imageView4" />
+
 </android.support.constraint.ConstraintLayout>
