@@ -1,6 +1,7 @@
 package co.nz.airshare.airshareclient;
 
 import android.Manifest;
+import android.app.ActivityManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
@@ -37,9 +38,21 @@ public class MainActivity extends AppCompatActivity {
     TextView longTextView;
     TextView accTextView;
     TextView altTextView;
+    TextView statusTextView;
+
 
     @Override
     public void onBackPressed() {
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        ActivityManager activityManager = (ActivityManager) getApplicationContext()
+                .getSystemService(Context.ACTIVITY_SERVICE);
+
+        activityManager.moveTaskToFront(getTaskId(), 0);
     }
 
     @Override
@@ -54,6 +67,8 @@ public class MainActivity extends AppCompatActivity {
         longTextView = findViewById(R.id.longTextView);
         accTextView = findViewById(R.id.accTextView);
         altTextView = findViewById(R.id.altTextView2);
+        statusTextView = findViewById(R.id.statusTextView);
+
 
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
@@ -82,11 +97,7 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         } else{
-            if (isTracking) {
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000, 0,locationListener );
-                Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (lastKnownLocation != null) updateLocationInfo(lastKnownLocation);
-            }
+            if (isTracking) locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, locationListener);
         }
     }
 
@@ -116,18 +127,19 @@ public class MainActivity extends AppCompatActivity {
     public void startListening() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000, 0,locationListener );
+            statusTextView.setVisibility(View.VISIBLE);
+            statusTextView.setText("Locking down GPS coordinates...");
         }
     }
 
     public void stopListening() {
         locationManager.removeUpdates(locationListener);
+        statusTextView.setVisibility(View.VISIBLE);
+        statusTextView.setText("Press the button to start the transmission");
     }
 
     public void updateLocationInfo(Location location) {
-
-        Log.i("lat: ", Double.toString(location.getLatitude()));
-        Log.i("long: ", Double.toString(location.getLongitude()));
-
+        statusTextView.setVisibility(View.INVISIBLE);
         latTextView.setText(String.format(Locale.getDefault(),"Latitude: %.5f", location.getLatitude()));
         longTextView.setText(String.format(Locale.getDefault(),"Longitude: %.5f", location.getLongitude()));
         accTextView.setText(String.format(Locale.getDefault(),"Accuracy: %s", location.getAccuracy()));
