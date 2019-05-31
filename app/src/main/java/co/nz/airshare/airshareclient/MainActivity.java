@@ -17,7 +17,6 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
-import android.view.inputmethod.InputMethodSession;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -129,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void stop()
+    private void stopIoTHubCommunication()
     {
         new Thread(new Runnable() {
             public void run()
@@ -149,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void start()
+    private void startIoTHubCommunication()
     {
         sendThread = new Thread(new Runnable() {
             public void run()
@@ -386,13 +385,13 @@ public class MainActivity extends AppCompatActivity {
             trackingButton.setText("Stop");
             trackingButton.setBackgroundColor(Color.parseColor("#FFB935"));
             startListening();
-            start();
+            startIoTHubCommunication();
         } else {
             isTracking = false;
             trackingButton.setText("Start");
             trackingButton.setBackgroundColor(Color.parseColor("#29A3D0"));
             stopListening();
-            stop();
+            stopIoTHubCommunication();
         }
     }
 
