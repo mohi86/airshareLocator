@@ -12,12 +12,12 @@ import android.os.Build;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 
-public class AirshareLocationService extends Service {
+public class AirshareAlwaysOnService extends Service {
 
     private static final int NOTIF_ID = 1;
     private static final String NOTIF_CHANNEL_ID = "Channel_Id";
 
-    public AirshareLocationService() {
+    public AirshareAlwaysOnService() {
     }
 
     @Override

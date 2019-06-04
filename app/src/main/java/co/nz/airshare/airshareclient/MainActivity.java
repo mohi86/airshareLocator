@@ -6,9 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -32,6 +36,7 @@ import com.microsoft.azure.sdk.iot.device.IotHubStatusCode;
 import com.microsoft.azure.sdk.iot.device.Message;
 import com.microsoft.azure.sdk.iot.device.transport.IotHubConnectionStatus;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -43,18 +48,15 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
-    LocationManager locationManager;
-    LocationListener locationListener;
-    Double latitude;
-    Double longitude;
-    Double altitude;
-    float accuracy;
+    Context context;
 
     String connString = BuildConfig.ConnectionString;
 
+    private JSONArray trackerData = new JSONArray();
     private String msgStr;
     private Message sendMessage;
     private String lastException;
+    private boolean isIOTHubRunning = false;
 
     private DeviceClient client;
 
@@ -64,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private int receiptsConfirmedCount = 0;
     private int sendFailuresCount = 0;
     private int msgReceivedCount = 0;
-    private int sendMessagesInterval = 1000;
+    private int sendMessagesInterval = 2000;
 
     private final Handler handler = new Handler();
     private Thread sendThread;
@@ -73,8 +75,16 @@ public class MainActivity extends AppCompatActivity {
     public static final int METHOD_THROWS = 403;
     private static final int METHOD_NOT_DEFINED = 404;
 
-    Boolean isTracking = false;
-    Button trackingButton;
+    private LocationManager locationManager;
+    private LocationListener locationListener;
+    private Double latitude;
+    private Double longitude;
+    private Double altitude;
+    private float accuracy;
+    private Boolean isTracking = false;
+
+    Button trackingBtn;
+    Button resetButton;
     TextView latTextView;
     TextView longTextView;
     TextView accTextView;
@@ -86,46 +96,69 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        context = getApplicationContext();
 
-        startService(new Intent(this, AirshareLocationService.class));
-
-        trackingButton = findViewById(R.id.trackingButton);
-        latTextView = findViewById(R.id.latTextView);
-        longTextView = findViewById(R.id.longTextView);
-        accTextView = findViewById(R.id.accTextView);
-        altTextView = findViewById(R.id.altTextView2);
+        trackingBtn = findViewById(R.id.trackingButton);
+        resetButton = findViewById(R.id.resetButton);
         statusTextView = findViewById(R.id.statusTextView);
 
+        startService(new Intent(this, AirshareAlwaysOnService.class));
+        loadActivity();
+    }
 
-        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+    protected void loadActivity() {
+        if (!isNetworkAvailable()) {
+            resetButton.setVisibility(View.VISIBLE);
+            trackingBtn.setVisibility(View.INVISIBLE);
+            statusTextView.setText("No Internet connection!");
+        } else {
+            resetButton.setVisibility(View.INVISIBLE);
+            trackingBtn.setVisibility(View.VISIBLE);
+            statusTextView.setText("Press the button to start the transmission");
+            locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
-        locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                updateLocationInfo(location);
+            locationListener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    updateLocationInfo(location);
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {
+
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+
+                }
+            };
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+            } else{
+                if (isTracking) locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, locationListener);
             }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-
-            }
-
-            @Override
-            public void onProviderEnabled(String provider) {
-
-            }
-
-            @Override
-            public void onProviderDisabled(String provider) {
-
-            }
-        };
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-        } else{
-            if (isTracking) locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, locationListener);
+            latTextView = findViewById(R.id.latTextView);
+            longTextView = findViewById(R.id.longTextView);
+            accTextView = findViewById(R.id.accTextView);
+            altTextView = findViewById(R.id.altTextView2);
         }
+    }
+
+    public void checkInternetConnection(View view) {
+        loadActivity();
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
     private void stopIoTHubCommunication()
@@ -138,6 +171,11 @@ public class MainActivity extends AppCompatActivity {
                     sendThread.interrupt();
                     client.closeNow();
                     System.out.println("Shutting down...");
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            enableTrackerBtn(true);
+                        }
+                    });
                 }
                 catch (Exception e)
                 {
@@ -146,6 +184,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }).start();
+
+        isIOTHubRunning = false;
     }
 
     private void startIoTHubCommunication()
@@ -175,7 +215,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         sendThread.start();
+
+        isIOTHubRunning = true;
     }
+
+    Runnable updateRunnable = new Runnable() {
+        public void run() {}
+    };
 
     Runnable exceptionRunnable = new Runnable() {
         public void run() {
@@ -197,11 +243,11 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private void sendMessages()
-    {
+    private void sendMessages() throws JSONException {
         msgStr = "\"latitude\":" + String.format(Locale.getDefault(),"%s",latitude) + ", " +
                 "\"longitude\":" + String.format(Locale.getDefault(),"%s",longitude) +
                 ", \"altitude\":" + String.format(Locale.getDefault(),"%s",altitude);
+
         try
         {
             sendMessage = new Message(msgStr);
@@ -210,10 +256,12 @@ public class MainActivity extends AppCompatActivity {
             EventCallback eventCallback = new EventCallback();
             client.sendEventAsync(sendMessage, eventCallback, msgSentCount);
             msgSentCount++;
+            handler.post(updateRunnable);
         }
         catch (Exception e)
         {
-            System.err.println("Exception while sending event: " + e);
+            trackerData.put(msgStr);
+            System.err.println("Exception while sending event: " + e.getMessage());
         }
     }
 
@@ -227,7 +275,7 @@ public class MainActivity extends AppCompatActivity {
             client.open();
             MessageCallback callback = new MessageCallback();
             client.setMessageCallback(callback, null);
-            client.subscribeToDeviceMethod(new SampleDeviceMethodCallback(), getApplicationContext(), new DeviceMethodStatusCallBack(), null);
+            client.subscribeToDeviceMethod(new TrackerDeviceMethodCallback(), getApplicationContext(), new DeviceMethodStatusCallBack(), null);
         }
         catch (Exception e)
         {
@@ -289,20 +337,23 @@ public class MainActivity extends AppCompatActivity {
                 //connection was lost, and is not being re-established. Look at provided exception for
                 // how to resolve this issue. Cannot send messages until this issue is resolved, and you manually
                 // re-open the device client
+                System.out.println("Network disconnected");
             }
             else if (status == IotHubConnectionStatus.DISCONNECTED_RETRYING)
             {
                 //connection was lost, but is being re-established. Can still send messages, but they won't
                 // be sent until the connection is re-established
+                System.out.println("Reconnect in progress");
             }
             else if (status == IotHubConnectionStatus.CONNECTED)
             {
                 //Connection was successfully re-established. Can send messages.
+                System.out.println("Reconnected");
             }
         }
     }
 
-    protected class SampleDeviceMethodCallback implements com.microsoft.azure.sdk.iot.device.DeviceTwin.DeviceMethodCallback
+    protected class TrackerDeviceMethodCallback implements com.microsoft.azure.sdk.iot.device.DeviceTwin.DeviceMethodCallback
     {
         @Override
         public DeviceMethodData call(String methodName, Object methodData, Object context)
@@ -354,8 +405,30 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void startButtonClicked(View view) {
 
+        //Disable the button until server response is received
+        enableTrackerBtn(false);
 
+        if (isTracking != true) {
+            startListening();
+        } else {
+            stopListening();
+        }
+
+        changeTrackingStatus();
+    }
+
+    private void enableTrackerBtn(Boolean state) {
+        trackingBtn.setEnabled(state);
+    }
+
+    private void trackingBtnChange(String status, String color) {
+        trackingBtn.setText(status);
+        trackingBtn.setBackgroundColor(Color.parseColor(color));
+    }
+
+    //Disable Android buttons
     @Override
     public void onBackPressed() {
     }
@@ -364,49 +437,38 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
 
-        ActivityManager activityManager = (ActivityManager) getApplicationContext()
-                .getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager activityManager = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
 
         activityManager.moveTaskToFront(getTaskId(), 0);
     }
 
+    public void changeTrackingStatus() {
+        isTracking = !isTracking;
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
         if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED && isTracking) {
             startListening();
         }
     }
 
-    public void startButtonClicked(View view) {
-        if (isTracking != true) {
-            isTracking = true;
-            trackingButton.setText("Stop");
-            trackingButton.setBackgroundColor(Color.parseColor("#FFB935"));
-            startListening();
-            startIoTHubCommunication();
-        } else {
-            isTracking = false;
-            trackingButton.setText("Start");
-            trackingButton.setBackgroundColor(Color.parseColor("#29A3D0"));
-            stopListening();
-            stopIoTHubCommunication();
-        }
-    }
-
     public void startListening() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000, 0,locationListener );
+            trackingBtnChange("Stop", "#FFB935");
             statusTextView.setVisibility(View.VISIBLE);
-            statusTextView.setText("Locking down GPS coordinates...");
+            statusTextView.setText("Locking down GPS coordinates & Connecting to server...");
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000, 0,locationListener );
         }
     }
 
     public void stopListening() {
-        locationManager.removeUpdates(locationListener);
+        trackingBtnChange("Start", "#29A3D0");
         statusTextView.setVisibility(View.VISIBLE);
         statusTextView.setText("Press the button to start the transmission");
+        locationManager.removeUpdates(locationListener);
+
+        if (isIOTHubRunning) stopIoTHubCommunication();
     }
 
     public void updateLocationInfo(Location location) {
@@ -415,10 +477,14 @@ public class MainActivity extends AppCompatActivity {
         altitude = location.getAltitude();
         accuracy = location.getAccuracy();
 
+        if (latitude != null && !isIOTHubRunning) startIoTHubCommunication();
+
         statusTextView.setVisibility(View.INVISIBLE);
-        latTextView.setText(String.format(Locale.getDefault(),"Latitude: %.5f", location.getLatitude()));
-        longTextView.setText(String.format(Locale.getDefault(),"Longitude: %.5f", location.getLongitude()));
-        accTextView.setText(String.format(Locale.getDefault(),"Accuracy: %s", location.getAccuracy()));
-        altTextView.setText(String.format(Locale.getDefault(),"Altitude: %s", location.getAltitude()));
+        enableTrackerBtn(true);
+        latTextView.setText(String.format(Locale.getDefault(),"Latitude: %.5f", latitude));
+        longTextView.setText(String.format(Locale.getDefault(),"Longitude: %.5f", longitude));
+        accTextView.setText(String.format(Locale.getDefault(),"Accuracy: %s", accuracy));
+        altTextView.setText(String.format(Locale.getDefault(),"Altitude: %s", altitude));
     }
+
 }

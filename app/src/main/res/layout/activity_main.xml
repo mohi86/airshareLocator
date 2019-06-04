@@ -96,11 +96,24 @@
         android:lineSpacingExtra="24sp"
         android:text="Press the button to start the transmission"
         android:textAlignment="center"
-        android:textSize="18sp"
+        android:textSize="14sp"
         app:layout_constraintBottom_toTopOf="@+id/trackingButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/imageView4" />
+
+    <Button
+        android:id="@+id/resetButton"
+        android:layout_width="157dp"
+        android:layout_height="65dp"
+        android:layout_marginTop="6dp"
+        android:background="@android:color/holo_red_light"
+        android:onClick="checkInternetConnection"
+        android:text="Try Again"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/statusTextView" />
 
 </android.support.constraint.ConstraintLayout>
