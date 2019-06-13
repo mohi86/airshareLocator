@@ -22,6 +22,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -82,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private Double altitude;
     private float accuracy;
     private Boolean isTracking = false;
+    private String flightID = null;
 
     Button trackingBtn;
     Button resetButton;
@@ -90,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
     TextView accTextView;
     TextView altTextView;
     TextView statusTextView;
+    EditText flightIDText;
 
 
     @Override
@@ -144,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
             } else{
                 if (isTracking) locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, locationListener);
             }
+            flightIDText = findViewById(R.id.flightIDText);
             latTextView = findViewById(R.id.latTextView);
             longTextView = findViewById(R.id.longTextView);
             accTextView = findViewById(R.id.accTextView);
@@ -244,9 +248,10 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void sendMessages() throws JSONException {
-        msgStr = "\"latitude\":" + String.format(Locale.getDefault(),"%s",latitude) + ", " +
+        msgStr = "{" + "\"flightID\":" + String.format(Locale.getDefault(),"%s",flightID) + ", " +
+                "\"latitude\":" + String.format(Locale.getDefault(),"%s",latitude) + ", " +
                 "\"longitude\":" + String.format(Locale.getDefault(),"%s",longitude) +
-                ", \"altitude\":" + String.format(Locale.getDefault(),"%s",altitude);
+                ", \"altitude\":" + String.format(Locale.getDefault(),"%s",altitude) + "}";
 
         try
         {
@@ -409,8 +414,9 @@ public class MainActivity extends AppCompatActivity {
 
         //Disable the button until server response is received
         enableTrackerBtn(false);
+        flightID = flightIDText.getText().toString();
 
-        if (isTracking != true) {
+        if (isTracking != true && flightID != null) {
             startListening();
         } else {
             stopListening();
@@ -456,6 +462,7 @@ public class MainActivity extends AppCompatActivity {
     public void startListening() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             trackingBtnChange("Stop", "#FFB935");
+            flightIDText.setVisibility(View.INVISIBLE);
             statusTextView.setVisibility(View.VISIBLE);
             statusTextView.setText("Locking down GPS coordinates & Connecting to server...");
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,2000, 0,locationListener );
@@ -465,6 +472,7 @@ public class MainActivity extends AppCompatActivity {
     public void stopListening() {
         trackingBtnChange("Start", "#29A3D0");
         statusTextView.setVisibility(View.VISIBLE);
+        flightIDText.setVisibility(View.VISIBLE);
         statusTextView.setText("Press the button to start the transmission");
         locationManager.removeUpdates(locationListener);
 
